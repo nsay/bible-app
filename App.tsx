@@ -4,11 +4,10 @@ import { StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 import { ScreenHeader } from './src/components/ScreenHeader';
-import { SectionHeader } from './src/components/SectionHeader';
-import { BookCarousel } from './src/components/BookCarousel';
-import { ChapterChips } from './src/components/ChapterChips';
 import { VerseList } from './src/components/VerseList';
 import { ErrorBanner } from './src/components/ErrorBanner';
+import { BookPicker } from './src/components/BookPicker';
+import { ChapterPicker } from './src/components/ChapterPicker';
 import { useBibleData } from './src/hooks/useBibleData';
 import { useBibleTheme } from './src/hooks/useBibleTheme';
 import { POPULAR_TRANSLATIONS } from './src/constants/translations';
@@ -31,11 +30,6 @@ export default function App() {
     setSelectedChapter,
     dismissError,
   } = useBibleData(translation);
-
-  const verseHeaderTitle = useMemo(() => {
-    const selectedBook = books.find((book) => book.id === selectedBookId);
-    return selectedBook ? `${selectedBook.name} ${selectedChapter}` : 'Verses';
-  }, [books, selectedBookId, selectedChapter]);
 
   const selectedTranslationOption = useMemo(
     () => POPULAR_TRANSLATIONS.find((option) => option.value === translation),
@@ -60,23 +54,24 @@ export default function App() {
             onSelectTranslation={setTranslation}
           />
 
-          <SectionHeader theme={theme} title="Books" loading={loadingBooks} />
-          <BookCarousel
-            books={books}
-            selectedBookId={selectedBookId}
-            onSelect={setSelectedBookId}
-            theme={theme}
-          />
-
-          <SectionHeader theme={theme} title="Chapters" loading={loadingChapters} />
-          <ChapterChips
-            chapters={chapters}
-            selectedChapter={selectedChapter}
-            onSelect={setSelectedChapter}
-            theme={theme}
-          />
-
-          <SectionHeader theme={theme} title={verseHeaderTitle} loading={loadingVerses} />
+          <View style={styles.pickerRow}>
+            <View style={styles.pickerColumn}>
+              <BookPicker
+                books={books}
+                selectedBookId={selectedBookId}
+                onSelect={setSelectedBookId}
+                theme={theme}
+              />
+            </View>
+            <View style={styles.pickerColumn}>
+              <ChapterPicker
+                chapters={chapters}
+                selectedChapter={selectedChapter}
+                onSelect={setSelectedChapter}
+                theme={theme}
+              />
+            </View>
+          </View>
 
           {error && <ErrorBanner message={error} onDismiss={dismissError} theme={theme} />}
 
@@ -95,5 +90,13 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 20,
     paddingBottom: 16,
+  },
+  pickerRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 12,
+  },
+  pickerColumn: {
+    flex: 1,
   },
 });
