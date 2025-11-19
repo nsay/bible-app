@@ -31,7 +31,7 @@ const initialState: UseBibleDataState = {
   error: null,
 };
 
-export function useBibleData(): UseBibleDataState & UseBibleDataActions {
+export function useBibleData(translation: string): UseBibleDataState & UseBibleDataActions {
   const [state, setState] = useState<UseBibleDataState>(initialState);
 
   useEffect(() => {
@@ -121,7 +121,11 @@ export function useBibleData(): UseBibleDataState & UseBibleDataActions {
     const loadVerses = async () => {
       try {
         setState((prev) => ({ ...prev, loadingVerses: true, error: null }));
-        const data = await bibleApi.fetchVerses(state.selectedBookId!, state.selectedChapter);
+        const data = await bibleApi.fetchVerses(
+          state.selectedBookId!,
+          state.selectedChapter,
+          translation,
+        );
         if (canceled) {
           return;
         }
@@ -147,7 +151,7 @@ export function useBibleData(): UseBibleDataState & UseBibleDataActions {
     return () => {
       canceled = true;
     };
-  }, [state.selectedBookId, state.selectedChapter]);
+  }, [state.selectedBookId, state.selectedChapter, translation]);
 
   const actions = useMemo<UseBibleDataActions>(
     () => ({

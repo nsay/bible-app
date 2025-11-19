@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
@@ -11,9 +11,12 @@ import { VerseList } from './src/components/VerseList';
 import { ErrorBanner } from './src/components/ErrorBanner';
 import { useBibleData } from './src/hooks/useBibleData';
 import { useBibleTheme } from './src/hooks/useBibleTheme';
+import { POPULAR_TRANSLATIONS } from './src/constants/translations';
 
 export default function App() {
   const { theme, toggleTheme } = useBibleTheme();
+  const [translation, setTranslation] = useState(POPULAR_TRANSLATIONS[0].value);
+
   const {
     books,
     chapters,
@@ -27,12 +30,20 @@ export default function App() {
     setSelectedBookId,
     setSelectedChapter,
     dismissError,
-  } = useBibleData();
+  } = useBibleData(translation);
 
   const verseHeaderTitle = useMemo(() => {
     const selectedBook = books.find((book) => book.id === selectedBookId);
     return selectedBook ? `${selectedBook.name} ${selectedChapter}` : 'Verses';
   }, [books, selectedBookId, selectedChapter]);
+
+  const selectedTranslationOption = useMemo(
+    () => POPULAR_TRANSLATIONS.find((option) => option.value === translation),
+    [translation],
+  );
+  const headerSubtitle = selectedTranslationOption
+    ? `Reading ${selectedTranslationOption.label}`
+    : 'Browse books, chapters, and verses.';
 
   return (
     <SafeAreaProvider>
@@ -41,9 +52,12 @@ export default function App() {
         <View style={styles.container}>
           <ScreenHeader
             title="Daily Bible"
-            subtitle="Browse books, chapters, and verses from the KJV."
+            subtitle={headerSubtitle}
             theme={theme}
             onToggleTheme={toggleTheme}
+            translationOptions={POPULAR_TRANSLATIONS}
+            selectedTranslation={translation}
+            onSelectTranslation={setTranslation}
           />
 
           <SectionHeader theme={theme} title="Books" loading={loadingBooks} />

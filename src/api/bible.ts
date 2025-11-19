@@ -26,6 +26,15 @@ export type ChapterNumber = {
   id: number;
 };
 
+export type Translation = {
+  id: number;
+  table: string;
+  language: string;
+  abbreviation: string;
+  version: string;
+  infoUrl: string;
+};
+
 async function fetchJSON<T>(path: string): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`);
 
@@ -39,6 +48,9 @@ async function fetchJSON<T>(path: string): Promise<T> {
 export const bibleApi = {
   fetchBooks: () => fetchJSON<Book[]>('/books'),
   fetchChapters: (bookId: number) => fetchJSON<ChapterNumber[]>(`/books/${bookId}/chapters`),
-  fetchVerses: (bookId: number, chapterId: number) =>
-    fetchJSON<Verse[]>(`/books/${bookId}/chapters/${chapterId}`),
+  fetchVerses: (bookId: number, chapterId: number, translation?: string) => {
+    const query = translation ? `?translation=${encodeURIComponent(translation)}` : '';
+    return fetchJSON<Verse[]>(`/books/${bookId}/chapters/${chapterId}${query}`);
+  },
+  fetchTranslations: () => fetchJSON<Translation[]>('/translations'),
 };
