@@ -140,7 +140,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingVertical: 14,
     paddingHorizontal: 18,
-    marginTop: 8,
   },
   triggerLabel: {
     fontSize: 10,
