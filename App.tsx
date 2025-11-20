@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useRef, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { Modal, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View, KeyboardAvoidingView } from 'react-native';
+import { Modal, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View, KeyboardAvoidingView, Animated, Dimensions } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 import { ScreenHeader } from './src/components/ScreenHeader';
@@ -27,6 +27,9 @@ export default function App() {
   const [tagVerse, setTagVerse] = useState<Verse | null>(null);
   const [tagText, setTagText] = useState('');
   const [tagSuggestions, setTagSuggestions] = useState<string[]>([]);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const sidebarWidth = Math.min(280, Dimensions.get('window').width * 0.75);
+  const sidebarAnim = useRef(new Animated.Value(-sidebarWidth)).current;
 
   const {
     books,
@@ -50,6 +53,14 @@ export default function App() {
   const headerSubtitle = selectedTranslationOption
     ? `Reading ${selectedTranslationOption.label}`
     : 'Browse books, chapters, and verses.';
+
+  useEffect(() => {
+    Animated.timing(sidebarAnim, {
+      toValue: sidebarOpen ? 0 : -sidebarWidth,
+      duration: 250,
+      useNativeDriver: true,
+    }).start();
+  }, [sidebarOpen, sidebarAnim, sidebarWidth]);
 
   const handleRequestEdit = (verse: Verse) => {
     setEditingVerse(verse);
@@ -256,12 +267,11 @@ export default function App() {
         <View style={styles.container}>
           <ScreenHeader
             title="Daily Bible"
-            subtitle={headerSubtitle}
             theme={theme}
-            onToggleTheme={toggleTheme}
             translationOptions={POPULAR_TRANSLATIONS}
             selectedTranslation={translation}
             onSelectTranslation={setTranslation}
+            onToggleMenu={() => setSidebarOpen(true)}
           />
 
           <View style={styles.pickerRow}>
@@ -302,6 +312,46 @@ export default function App() {
           />
         </View>
       </SafeAreaView>
+
+      {sidebarOpen && (
+        <TouchableOpacity
+          style={styles.sidebarOverlay}
+          activeOpacity={1}
+          onPress={() => setSidebarOpen(false)}
+        />
+      )}
+      <Animated.View
+        style={[
+          styles.sidebarContainer,
+          {
+            width: sidebarWidth,
+            transform: [{ translateX: sidebarAnim }],
+            backgroundColor: theme.colors.surface,
+          },
+        ]}
+      >
+        <View style={styles.sidebarHeader}>
+          <Text style={[styles.sidebarTitle, { color: theme.colors.sectionTitle }]}>Menu</Text>
+          <TouchableOpacity onPress={() => setSidebarOpen(false)}>
+            <Text style={styles.closeText}>×</Text>
+          </TouchableOpacity>
+        </View>
+        {['Home', 'Bookmarks', 'Settings'].map((item) => (
+          <TouchableOpacity key={item} style={styles.sidebarItem}>
+            <Text style={[styles.sidebarItemText, { color: theme.colors.text }]}>{item}</Text>
+          </TouchableOpacity>
+        ))}
+
+        <View style={styles.sidebarDivider} />
+        <TouchableOpacity
+          style={[styles.themeToggle, { borderColor: theme.colors.chipBorder }]}
+          onPress={toggleTheme}
+        >
+          <Text style={[styles.toggleEmoji, { color: theme.colors.sectionTitle }]}>
+            {theme.mode === 'dark' ? '☀️ Light Mode' : '🌙 Dark Mode'}
+          </Text>
+        </TouchableOpacity>
+      </Animated.View>
 
       <Modal transparent visible={!!editingVerse} animationType="fade" onRequestClose={handleCancelEdit}>
         <KeyboardAvoidingView
@@ -655,5 +705,42 @@ const styles = StyleSheet.create({
     color: '#f87171',
     fontWeight: '600',
     fontSize: 13,
+  },
+  sidebarOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+  },
+  sidebarContainer: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    paddingTop: 60,
+    paddingHorizontal: 20,
+    paddingBottom: 40,
+    borderRightWidth: 1,
+    borderColor: 'rgba(148, 163, 184, 0.2)',
+  },
+  sidebarHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  sidebarTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+  },
+  sidebarItem: {
+    paddingVertical: 12,
+  },
+  sidebarItemText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  sidebarDivider: {
+    height: 1,
+    backgroundColor: 'rgba(148, 163, 184, 0.3)',
+    marginVertical: 16,
   },
 });
