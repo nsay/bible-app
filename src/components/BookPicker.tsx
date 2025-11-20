@@ -78,16 +78,26 @@ export function BookPicker({ books, selectedBookId, onSelect, theme }: BookPicke
               },
             ]}
           >
-            <Text style={[styles.modalTitle, { color: theme.colors.sectionTitle }]}>
-              Choose a Book
-            </Text>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: theme.colors.sectionTitle }]}>Choose a Book</Text>
+              <TouchableOpacity style={styles.closeButton} onPress={close}>
+                <Text style={[styles.closeText, { color: theme.colors.sectionTitle }]}>×</Text>
+              </TouchableOpacity>
+            </View>
             <SectionList
               sections={sections}
               keyExtractor={(item) => String(item.id)}
               renderSectionHeader={({ section }) => (
-                <Text style={[styles.sectionHeader, { color: theme.colors.textMuted }]}>
-                  {section.title}
-                </Text>
+                <View
+                  style={[
+                    styles.sectionHeaderContainer,
+                    { backgroundColor: theme.colors.surface },
+                  ]}
+                >
+                  <Text style={[styles.sectionHeader, { color: theme.colors.textMuted }]}>
+                    {section.title}
+                  </Text>
+                </View>
               )}
               renderItem={({ item }) => {
                 const isActive = item.id === selectedBookId;
@@ -170,15 +180,32 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: 16,
   },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
   modalTitle: {
     fontSize: 18,
     fontWeight: '600',
-    marginBottom: 12,
+  },
+  closeButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  closeText: {
+    fontSize: 22,
+    fontWeight: '600',
+  },
+  sectionHeaderContainer: {
+    paddingVertical: 4,
   },
   sectionHeader: {
     fontSize: 13,
     fontWeight: '600',
-    marginTop: 12,
     marginBottom: 6,
   },
   bookRow: {
