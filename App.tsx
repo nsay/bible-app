@@ -1,10 +1,11 @@
 import { useMemo, useState, useRef, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { Modal, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View, KeyboardAvoidingView, Animated, Dimensions, Switch, ScrollView } from 'react-native';
+import { Modal, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View, KeyboardAvoidingView, Animated, Dimensions, Switch, ScrollView, PanResponder } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 import { ScreenHeader } from './src/components/ScreenHeader';
-import { VerseList, VerseEdit, VerseNote } from './src/components/VerseList';
+import { VerseList, VerseEdit, VerseNote, VerseTag } from './src/components/VerseList';
 import { ErrorBanner } from './src/components/ErrorBanner';
 import { BookPicker } from './src/components/BookPicker';
 import { ChapterPicker } from './src/components/ChapterPicker';
@@ -18,7 +19,7 @@ export default function App() {
   const [translation, setTranslation] = useState(POPULAR_TRANSLATIONS[0].value);
   const [verseEdits, setVerseEdits] = useState<Record<number, VerseEdit[]>>({});
   const [verseNotes, setVerseNotes] = useState<Record<number, VerseNote[]>>({});
-  const [verseTags, setVerseTags] = useState<Record<number, string[]>>({});
+  const [verseTags, setVerseTags] = useState<Record<number, VerseTag[]>>({});
   const [editingVerse, setEditingVerse] = useState<Verse | null>(null);
   const [editOriginal, setEditOriginal] = useState('');
   const [editReplacement, setEditReplacement] = useState('');
@@ -30,9 +31,30 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const sidebarWidth = Math.min(280, Dimensions.get('window').width * 0.75);
   const sidebarAnim = useRef(new Animated.Value(-sidebarWidth)).current;
+  const contentAnim = useRef(new Animated.Value(0)).current;
   const [notesPanelOpen, setNotesPanelOpen] = useState(false);
   const notesPanelHeight = Dimensions.get('window').height;
   const notesPanelAnim = useRef(new Animated.Value(notesPanelHeight)).current;
+  const [tagsPanelOpen, setTagsPanelOpen] = useState(false);
+  const tagsPanelHeight = Dimensions.get('window').height;
+  const tagsPanelAnim = useRef(new Animated.Value(tagsPanelHeight)).current;
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gesture) =>
+        !sidebarOpen && !notesPanelOpen && !tagsPanelOpen && gesture.dx > 10 && Math.abs(gesture.dy) < 20,
+      onPanResponderMove: (_, gesture) => {
+        if (sidebarOpen || notesPanelOpen || tagsPanelOpen) return;
+        const offset = Math.min(Math.max(0, gesture.dx), sidebarWidth);
+        contentAnim.setValue(offset);
+        sidebarAnim.setValue(offset - sidebarWidth);
+      },
+      onPanResponderRelease: (_, gesture) => {
+        if (sidebarOpen || notesPanelOpen || tagsPanelOpen) return;
+        const shouldOpen = gesture.dx > sidebarWidth * 0.3;
+        setSidebarOpen(shouldOpen);
+      },
+    }),
+  ).current;
 
   const {
     books,
@@ -63,6 +85,12 @@ export default function App() {
       duration: 250,
       useNativeDriver: true,
     }).start();
+
+    Animated.timing(contentAnim, {
+      toValue: sidebarOpen ? sidebarWidth : 0,
+      duration: 250,
+      useNativeDriver: true,
+    }).start();
   }, [sidebarOpen, sidebarAnim, sidebarWidth]);
 
   useEffect(() => {
@@ -72,6 +100,14 @@ export default function App() {
       useNativeDriver: true,
     }).start();
   }, [notesPanelOpen, notesPanelAnim, notesPanelHeight]);
+
+  useEffect(() => {
+    Animated.timing(tagsPanelAnim, {
+      toValue: tagsPanelOpen ? 0 : tagsPanelHeight,
+      duration: 250,
+      useNativeDriver: true,
+    }).start();
+  }, [tagsPanelOpen, tagsPanelAnim, tagsPanelHeight]);
 
   const allNotes = useMemo(() => {
     const grouped: Record<string, {
@@ -283,12 +319,23 @@ export default function App() {
 
     setVerseTags((prev) => {
       const current = prev[tagVerse.id] ?? [];
-      if (current.some((tag) => tag.toLowerCase() === trimmed.toLowerCase())) {
+      if (current.some((tag) => tag.value.toLowerCase() === trimmed.toLowerCase())) {
         return prev;
       }
+      const nextTag: VerseTag = {
+        id: `${Date.now()}`,
+        value: trimmed,
+        ref: {
+          verseId: tagVerse.verseId,
+          chapterId: tagVerse.chapterId,
+          bookId: tagVerse.book.id,
+          bookName: tagVerse.book.name,
+          text: tagVerse.verse,
+        },
+      };
       return {
         ...prev,
-        [tagVerse.id]: [...current, trimmed],
+        [tagVerse.id]: [...current, nextTag],
       };
     });
 
@@ -303,10 +350,10 @@ export default function App() {
     setTagText('');
   };
 
-  const handleRemoveTag = (verseId: number, tag: string) => {
+  const handleRemoveTag = (verseId: number, tagId: string) => {
     setVerseTags((prev) => {
       const current = prev[verseId] ?? [];
-      const filtered = current.filter((item) => item !== tag);
+      const filtered = current.filter((item) => item.id !== tagId);
       const next = { ...prev };
       if (filtered.length === 0) {
         delete next[verseId];
@@ -322,11 +369,61 @@ export default function App() {
     setTagText('');
   };
 
+  const allTags = useMemo(() => {
+    const grouped: Record<string, {
+      verseId: number;
+      chapterId: number;
+      bookId: number;
+      bookName?: string;
+      verseText?: string;
+      tags: VerseTag[];
+      notes: VerseNote[];
+    }> = {};
+
+    Object.entries(verseTags).forEach(([verseIdStr, tagList]) => {
+      const verseId = Number(verseIdStr);
+      tagList?.forEach((tag) => {
+        const key = tag.ref
+          ? `${tag.ref.bookId}-${tag.ref.chapterId}-${tag.ref.verseId}`
+          : `unknown-${verseId}`;
+
+        const existing = grouped[key] ?? {
+          verseId: tag.ref?.verseId ?? verseId,
+          chapterId: tag.ref?.chapterId ?? 0,
+          bookId: tag.ref?.bookId ?? 0,
+          bookName: tag.ref?.bookName,
+          verseText: tag.ref?.text,
+          tags: [],
+          notes: verseNotes[verseId] ?? [],
+        };
+
+        grouped[key] = {
+          ...existing,
+          tags: [...existing.tags, tag],
+          notes: verseNotes[verseId] ?? existing.notes,
+        };
+      });
+    });
+
+    return Object.values(grouped).sort((a, b) => {
+      if (a.bookId === b.bookId) {
+        if (a.chapterId === b.chapterId) {
+          return a.verseId - b.verseId;
+        }
+        return a.chapterId - b.chapterId;
+      }
+      return a.bookId - b.bookId;
+    });
+  }, [verseTags, verseNotes]);
+
   return (
     <SafeAreaProvider>
       <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>
         <StatusBar style={theme.mode === 'dark' ? 'light' : 'dark'} />
-        <View style={styles.container}>
+        <Animated.View
+          style={[styles.container, { transform: [{ translateX: contentAnim }] }]}
+          {...panResponder.panHandlers}
+        >
           <ScreenHeader
             title="Daily Bible"
             theme={theme}
@@ -372,7 +469,7 @@ export default function App() {
             onAddTag={handleAddTag}
             onRemoveTag={handleRemoveTag}
           />
-        </View>
+        </Animated.View>
       </SafeAreaView>
 
       {sidebarOpen && (
@@ -398,21 +495,36 @@ export default function App() {
             <Text style={[styles.closeText, { color: theme.colors.sectionTitle }]}>×</Text>
           </TouchableOpacity>
         </View>
-        {['Home', 'Bookmarks', 'Settings'].map((item) => (
-          <TouchableOpacity key={item} style={styles.sidebarItem}>
-            <Text style={[styles.sidebarItemText, { color: theme.colors.text }]}>{item}</Text>
+        {[
+          {
+            label: 'Notes',
+            icon: 'file-text',
+            onPress: () => {
+              setSidebarOpen(false);
+              setNotesPanelOpen(true);
+            },
+          },
+          {
+            label: 'Tags',
+            icon: 'tag',
+            onPress: () => {
+              setSidebarOpen(false);
+              setTagsPanelOpen(true);
+            },
+          },
+          {
+            label: 'Settings',
+            icon: 'settings',
+            onPress: () => {},
+          },
+        ].map((item) => (
+          <TouchableOpacity key={item.label} style={styles.sidebarItem} onPress={item.onPress}>
+            <View style={styles.sidebarItemRow}>
+              <Feather name={item.icon as any} size={18} color={theme.colors.text} />
+              <Text style={[styles.sidebarItemText, { color: theme.colors.text }]}>{item.label}</Text>
+            </View>
           </TouchableOpacity>
         ))}
-
-        <TouchableOpacity
-          style={styles.sidebarItem}
-          onPress={() => {
-            setSidebarOpen(false);
-            setNotesPanelOpen(true);
-          }}
-        >
-          <Text style={[styles.sidebarItemText, { color: theme.colors.text }]}>Notes</Text>
-        </TouchableOpacity>
 
         <View style={styles.sidebarDivider} />
         <View style={styles.themeRow}>
@@ -633,7 +745,114 @@ export default function App() {
                 <Text style={[styles.notesVerseText, { color: theme.colors.verseText }]}> 
                   {verseNoteGroup.verseText}
                 </Text>
+                {(verseTags[verseNoteGroup.verseId] ?? []).length > 0 && (
+                  <View style={styles.tagRowPanel}>
+                    {(verseTags[verseNoteGroup.verseId] ?? []).map((tag) => (
+                      <View
+                        key={tag.id}
+                        style={[
+                          styles.tagChipPanel,
+                          {
+                            backgroundColor: theme.colors.surfaceAlt,
+                            borderColor: theme.colors.chipBorder,
+                          },
+                        ]}
+                      >
+                        <Text style={[styles.tagTextPanel, { color: theme.colors.text }]}>{tag.value}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
                 {verseNoteGroup.notes.map((note) => (
+                  <View
+                    key={note.id}
+                    style={[
+                      styles.notesNoteCard,
+                      {
+                        backgroundColor: theme.colors.surfaceAlt,
+                        borderColor: theme.colors.chipBorder,
+                      },
+                    ]}
+                  >
+                    <View style={styles.notesNoteHeader}>
+                      <Text style={[styles.notesNoteLabel, { color: theme.colors.sectionTitle }]}>Your note</Text>
+                    </View>
+                    <Text style={[styles.notesNoteText, { color: theme.colors.text }]}>
+                      {note.text}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            ))
+          )}
+        </ScrollView>
+      </Animated.View>
+
+      {tagsPanelOpen && (
+        <TouchableOpacity
+          style={styles.notesOverlay}
+          activeOpacity={1}
+          onPress={() => setTagsPanelOpen(false)}
+        />
+      )}
+      <Animated.View
+        style={[
+          styles.notesPanel,
+          {
+            height: tagsPanelHeight,
+            transform: [{ translateY: tagsPanelAnim }],
+            backgroundColor: theme.colors.surface,
+          },
+        ]}
+      >
+        <View style={styles.notesHeader}>
+          <Text style={[styles.notesTitle, { color: theme.colors.sectionTitle }]}>All Tags</Text>
+          <TouchableOpacity onPress={() => setTagsPanelOpen(false)}>
+            <Text style={[styles.closeText, { color: theme.colors.sectionTitle }]}>×</Text>
+          </TouchableOpacity>
+        </View>
+        <ScrollView showsVerticalScrollIndicator={false}>
+          {allTags.length === 0 ? (
+            <Text style={[styles.emptyNotesText, { color: theme.colors.textMuted }]}>
+              You have no tags yet.
+            </Text>
+          ) : (
+            allTags.map((group) => (
+              <View
+                key={`${group.bookId}-${group.chapterId}-${group.verseId}`}
+                style={[
+                  styles.notesCard,
+                  {
+                    borderColor: theme.colors.verseCardBorder,
+                    backgroundColor: theme.colors.verseCardBg,
+                  },
+                ]}
+              >
+                <Text style={[styles.notesVerseRef, { color: theme.colors.verseNumber }]}>
+                  {group.bookName ?? 'Verse'} {group.chapterId}:{group.verseId}
+                </Text>
+                <Text style={[styles.notesVerseText, { color: theme.colors.verseText }]}> 
+                  {group.verseText}
+                </Text>
+                <View style={styles.tagRowPanel}>
+                  {group.tags.map((tag) => (
+                    <View
+                      key={tag.id}
+                      style={[
+                        styles.tagChipPanel,
+                        {
+                          backgroundColor: theme.colors.surfaceAlt,
+                          borderColor: theme.colors.chipBorder,
+                        },
+                      ]}
+                    >
+                      <Text style={[styles.tagTextPanel, { color: theme.colors.text }]}>
+                        {tag.value}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+                {(group.notes ?? []).map((note) => (
                   <View
                     key={note.id}
                     style={[
@@ -830,47 +1049,6 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     gap: 12,
   },
-  noteActions: {
-    marginTop: 4,
-    gap: 12,
-  },
-  noteActionButtons: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 12,
-  },
-  removeButton: {
-    alignSelf: 'flex-start',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    backgroundColor: 'rgba(248, 113, 113, 0.15)',
-  },
-  removeButtonText: {
-    color: '#f87171',
-    fontWeight: '600',
-    fontSize: 13,
-  },
-  notesNoteCard: {
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
-    marginTop: 6,
-  },
-  notesNoteHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 4,
-  },
-  notesNoteLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  notesNoteText: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
   sidebarOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.35)',
@@ -899,6 +1077,11 @@ const styles = StyleSheet.create({
   sidebarItem: {
     paddingVertical: 12,
   },
+  sidebarItemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
   sidebarItemText: {
     fontSize: 16,
     fontWeight: '600',
@@ -912,6 +1095,66 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  noteActions: {
+    marginTop: 4,
+    gap: 12,
+  },
+  noteActionButtons: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 12,
+  },
+  removeButton: {
+    alignSelf: 'flex-start',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: 'rgba(248, 113, 113, 0.15)',
+  },
+  removeButtonText: {
+    color: '#f87171',
+    fontWeight: '600',
+    fontSize: 13,
+  },
+  tagRowPanel: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  tagChipPanel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 999,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderWidth: 1,
+  },
+  tagTextPanel: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  notesNoteCard: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 6,
+  },
+  notesNoteHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  notesNoteLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  notesNoteText: {
+    fontSize: 14,
+    lineHeight: 20,
   },
   closeText: {
     fontSize: 24,

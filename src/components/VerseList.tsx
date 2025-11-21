@@ -28,20 +28,32 @@ export type VerseNote = {
   };
 };
 
+export type VerseTag = {
+  id: string;
+  value: string;
+  ref?: {
+    verseId: number;
+    chapterId: number;
+    bookId: number;
+    bookName: string;
+    text?: string;
+  };
+};
+
 type VerseListProps = {
   verses: Verse[];
   loading: boolean;
   theme: Theme;
   edits: Record<number, VerseEdit[]>;
   notes: Record<number, VerseNote[]>;
-  tags: Record<number, string[]>;
+  tags: Record<number, VerseTag[]>;
   tagSuggestions: string[];
   onEditVerse: (verse: Verse) => void;
   onAddNote: (verse: Verse) => void;
   onEditNote: (verse: Verse, noteId: string) => void;
   onRemoveNote: (verseId: number, noteId: string) => void;
   onAddTag: (verse: Verse) => void;
-  onRemoveTag: (verseId: number, tag: string) => void;
+  onRemoveTag: (verseId: number, tagId: string) => void;
 };
 
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -154,7 +166,7 @@ export function VerseList({
         <View style={styles.tagList}>
           {(tags[item.id] ?? []).map((tag) => (
             <View
-              key={tag}
+              key={tag.id}
               style={[
                 styles.tagChip,
                 {
@@ -163,8 +175,8 @@ export function VerseList({
                 },
               ]}
             >
-              <Text style={[styles.tagText, { color: theme.colors.text }]}>{tag}</Text>
-              <TouchableOpacity onPress={() => onRemoveTag(item.id, tag)}>
+              <Text style={[styles.tagText, { color: theme.colors.text }]}>{tag.value}</Text>
+              <TouchableOpacity onPress={() => onRemoveTag(item.id, tag.id)}>
                 <Text style={styles.tagRemove}>×</Text>
               </TouchableOpacity>
             </View>
