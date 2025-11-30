@@ -1,5 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
+  Animated,
+  Dimensions,
   Modal,
   SectionList,
   StyleSheet,
@@ -17,8 +19,12 @@ type BookPickerProps = {
   theme: Theme;
 };
 
+const SHEET_DURATION = 250;
+
 export function BookPicker({ books, selectedBookId, onSelect, theme }: BookPickerProps) {
-  const [open, setOpen] = useState(false);
+  const [visible, setVisible] = useState(false);
+  const sheetAnim = useRef(new Animated.Value(0)).current;
+  const screenHeight = Dimensions.get('window').height;
   const selectedBook = books.find((book) => book.id === selectedBookId);
   const sections = useMemo(() => {
     const grouped: Record<string, Book[]> = {};
@@ -41,10 +47,27 @@ export function BookPicker({ books, selectedBookId, onSelect, theme }: BookPicke
       }));
   }, [books]);
 
-  const close = () => setOpen(false);
+  const openSheet = () => {
+    setVisible(true);
+    sheetAnim.setValue(screenHeight);
+    Animated.timing(sheetAnim, {
+      toValue: 0,
+      duration: SHEET_DURATION,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const closeSheet = () => {
+    Animated.timing(sheetAnim, {
+      toValue: screenHeight,
+      duration: SHEET_DURATION - 30,
+      useNativeDriver: true,
+    }).start(() => setVisible(false));
+  };
+
   const handleSelect = (bookId: number) => {
     onSelect(bookId);
-    close();
+    closeSheet();
   };
 
   return (
@@ -57,89 +80,95 @@ export function BookPicker({ books, selectedBookId, onSelect, theme }: BookPicke
             backgroundColor: theme.colors.surfaceAlt,
           },
         ]}
-        onPress={() => setOpen(true)}
+        onPress={openSheet}
         activeOpacity={0.85}
       >
         <Text style={[styles.triggerLabel, { color: theme.colors.textMuted }]}>Current Book</Text>
-        <Text style={[styles.triggerValue, { color: theme.colors.sectionTitle }]}>
+        <Text style={[styles.triggerValue, { color: theme.colors.sectionTitle }]}> 
           {selectedBook ? selectedBook.name : 'Select a book'}
         </Text>
       </TouchableOpacity>
 
-      <Modal transparent visible={open} animationType="fade" onRequestClose={close}>
-        <View style={styles.modalOverlay}>
-          <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={close} />
-          <View
-            style={[
-              styles.modalContent,
-              {
-                backgroundColor: theme.colors.surface,
-                borderColor: theme.colors.chipBorder,
-              },
-            ]}
-          >
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: theme.colors.sectionTitle }]}>Choose a Book</Text>
-              <TouchableOpacity style={styles.closeButton} onPress={close}>
-                <Text style={[styles.closeText, { color: theme.colors.sectionTitle }]}>×</Text>
-              </TouchableOpacity>
-            </View>
-            <SectionList
-              sections={sections}
-              keyExtractor={(item) => String(item.id)}
-              renderSectionHeader={({ section }) => (
-                <View
-                  style={[
-                    styles.sectionHeaderContainer,
-                    { backgroundColor: theme.colors.surface },
-                  ]}
-                >
-                  <Text style={[styles.sectionHeader, { color: theme.colors.textMuted }]}>
-                    {section.title}
-                  </Text>
-                </View>
-              )}
-              renderItem={({ item }) => {
-                const isActive = item.id === selectedBookId;
-                return (
-                  <TouchableOpacity
+      {visible && (
+        <Modal transparent animationType="none" visible onRequestClose={closeSheet}>
+          <View style={styles.sheetWrapper}>
+            <TouchableOpacity style={styles.sheetOverlay} activeOpacity={1} onPress={closeSheet} />
+            <Animated.View
+              style={[
+                styles.sheetContent,
+                {
+                  backgroundColor: theme.colors.surface,
+                  borderColor: theme.colors.verseCardBorder,
+                  transform: [{ translateY: sheetAnim }],
+                },
+              ]}
+            >
+              <View style={styles.sheetHandle} />
+              <View style={styles.sheetHeader}>
+                <Text style={[styles.sheetTitle, { color: theme.colors.sectionTitle }]}>Choose a Book</Text>
+                <TouchableOpacity style={styles.closeButton} onPress={closeSheet}>
+                  <Text style={[styles.closeText, { color: theme.colors.sectionTitle }]}>×</Text>
+                </TouchableOpacity>
+              </View>
+              <SectionList
+                sections={sections}
+                keyExtractor={(item) => String(item.id)}
+                contentContainerStyle={styles.sheetListContent}
+                renderSectionHeader={({ section }) => (
+                  <View
                     style={[
-                      styles.bookRow,
-                      {
-                        borderColor: theme.colors.chipBorder,
-                        backgroundColor: isActive ? theme.colors.chipBgActive : 'transparent',
-                      },
+                      styles.sectionHeaderContainer,
+                      { backgroundColor: theme.colors.surface },
                     ]}
-                    onPress={() => handleSelect(item.id)}
                   >
-                    <Text
+                    <Text style={[styles.sectionHeader, { color: theme.colors.textMuted }]}> 
+                      {section.title}
+                    </Text>
+                  </View>
+                )}
+                renderItem={({ item }) => {
+                  const isActive = item.id === selectedBookId;
+                  return (
+                    <TouchableOpacity
                       style={[
-                        styles.bookName,
+                        styles.bookRow,
                         {
-                          color: isActive ? theme.colors.chipTextActive : theme.colors.chipText,
+                          borderColor: theme.colors.chipBorder,
+                          backgroundColor: isActive ? theme.colors.chipBgActive : 'transparent',
                         },
                       ]}
+                      onPress={() => handleSelect(item.id)}
+                      activeOpacity={0.9}
                     >
-                      {item.name}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.bookMeta,
-                        {
-                          color: isActive ? theme.colors.chipTextActive : theme.colors.textMuted,
-                        },
-                      ]}
-                    >
-                      {item.genre.name}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              }}
-              showsVerticalScrollIndicator={false}
-            />
+                      <Text
+                        style={[
+                          styles.bookName,
+                          {
+                            color: isActive ? theme.colors.chipTextActive : theme.colors.chipText,
+                          },
+                        ]}
+                      >
+                        {item.name}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.bookMeta,
+                          {
+                            color: isActive ? theme.colors.chipTextActive : theme.colors.textMuted,
+                          },
+                        ]}
+                      >
+                        {item.genre.name}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                }}
+                showsVerticalScrollIndicator={false}
+              />
+            </Animated.View>
           </View>
-        </View>
-      </Modal>
+        </Modal>
+      )}
     </>
   );
 }
@@ -161,33 +190,43 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginTop: 4,
   },
-  triggerMeta: {
-    fontSize: 12,
-    marginTop: 4,
-  },
-  modalOverlay: {
+  sheetWrapper: {
     flex: 1,
-    justifyContent: 'center',
-    paddingHorizontal: 24,
+    justifyContent: 'flex-end',
   },
-  backdrop: {
+  sheetOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.3)',
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
   },
-  modalContent: {
-    maxHeight: '80%',
-    borderRadius: 20,
-    borderWidth: 1,
-    padding: 16,
+  sheetContent: {
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingTop: 36,
+    paddingHorizontal: 20,
+    paddingBottom: 32,
+    borderTopWidth: 1,
+    maxHeight: '100%',
   },
-  modalHeader: {
+  sheetHandle: {
+    width: 50,
+    height: 4,
+    borderRadius: 999,
+    alignSelf: 'center',
+    backgroundColor: 'rgba(148, 163, 184, 0.5)',
+    marginBottom: 16,
+  },
+  sheetHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
   },
-  modalTitle: {
+  sheetTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: '700',
+  },
+  sheetListContent: {
+    paddingBottom: 60,
   },
   closeButton: {
     width: 32,

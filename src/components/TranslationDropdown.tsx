@@ -1,7 +1,18 @@
-import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { useState } from 'react';
+import {
+  Animated,
+  Dimensions,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { useRef, useState } from 'react';
 import { Theme } from '../theme/theme';
 import { TranslationOption } from '../constants/translations';
+
+const SHEET_DURATION = 250;
 
 type TranslationDropdownProps = {
   options: TranslationOption[];
@@ -10,19 +21,35 @@ type TranslationDropdownProps = {
   theme: Theme;
 };
 
-export function TranslationDropdown({
-  options,
-  selectedValue,
-  onSelect,
-  theme,
-}: TranslationDropdownProps) {
-  const [open, setOpen] = useState(false);
+export function TranslationDropdown({ options, selectedValue, onSelect, theme }: TranslationDropdownProps) {
+  const [visible, setVisible] = useState(false);
+  const sheetAnim = useRef(new Animated.Value(0)).current;
+  const screenHeight = Dimensions.get('window').height;
   const selectedOption = options.find((option) => option.value === selectedValue);
 
-  const close = () => setOpen(false);
+  const openSheet = () => {
+    setVisible(true);
+    sheetAnim.setValue(screenHeight);
+    Animated.timing(sheetAnim, {
+      toValue: 0,
+      duration: SHEET_DURATION,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const closeSheet = () => {
+    Animated.timing(sheetAnim, {
+      toValue: screenHeight,
+      duration: SHEET_DURATION - 30,
+      useNativeDriver: true,
+    }).start(() => {
+      setVisible(false);
+    });
+  };
+
   const handleSelect = (value: string) => {
     onSelect(value);
-    close();
+    closeSheet();
   };
 
   return (
@@ -35,7 +62,7 @@ export function TranslationDropdown({
             backgroundColor: theme.colors.surfaceAlt,
           },
         ]}
-        onPress={() => setOpen(true)}
+        onPress={openSheet}
         activeOpacity={0.7}
       >
         <Text style={[styles.triggerText, { color: theme.colors.text }]}>
@@ -43,43 +70,59 @@ export function TranslationDropdown({
         </Text>
       </TouchableOpacity>
 
-      <Modal transparent visible={open} animationType="fade">
-        <View style={styles.modalOverlay}>
-          <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={close} />
-          <View
-            style={[
-              styles.modalContent,
-              {
-                backgroundColor: theme.colors.surface,
-                borderColor: theme.colors.chipBorder,
-              },
-            ]}
-          >
-            {options.map((option) => {
-              const isActive = option.value === selectedValue;
-              return (
-                <TouchableOpacity
-                  key={option.value}
-                  style={[
-                    styles.optionRow,
-                    isActive && { backgroundColor: theme.colors.bookPillBg },
-                  ]}
-                  onPress={() => handleSelect(option.value)}
-                >
-                  <Text
-                    style={[
-                      styles.optionText,
-                      { color: isActive ? theme.colors.sectionTitle : theme.colors.text },
-                    ]}
-                  >
-                    {option.label}
-                  </Text>
+      {visible && (
+        <Modal transparent animationType="none" visible onRequestClose={closeSheet}>
+          <View style={styles.sheetWrapper}>
+            <Animated.View
+              style={[
+                styles.sheetContent,
+                {
+                  backgroundColor: theme.colors.surface,
+                  borderColor: theme.colors.verseCardBorder,
+                  transform: [{ translateY: sheetAnim }],
+                },
+              ]}
+            >
+              <View style={styles.sheetHandle} />
+              <View style={styles.sheetHeader}>
+                <Text style={[styles.sheetTitle, { color: theme.colors.sectionTitle }]}>Choose a translation</Text>
+                <TouchableOpacity style={styles.closeButton} onPress={closeSheet}>
+                  <Text style={[styles.closeButtonText, { color: theme.colors.sectionTitle }]}>×</Text>
                 </TouchableOpacity>
-              );
-            })}
+              </View>
+              <ScrollView contentContainerStyle={styles.sheetOptions} showsVerticalScrollIndicator={false}>
+                {options.map((option) => {
+                  const isActive = option.value === selectedValue;
+                  return (
+                    <TouchableOpacity
+                      key={option.value}
+                      style={[
+                        styles.optionCard,
+                        {
+                          borderColor: theme.colors.verseCardBorder,
+                          backgroundColor: isActive ? theme.colors.bookPillBg : theme.colors.verseCardBg,
+                        },
+                      ]}
+                      activeOpacity={0.9}
+                      onPress={() => handleSelect(option.value)}
+                    >
+                      <Text
+                        style={[
+                          styles.optionLabel,
+                          { color: isActive ? theme.colors.sectionTitle : theme.colors.text },
+                        ]}
+                      >
+                        {option.label}
+                      </Text>
+                      <Text style={[styles.optionValue, { color: theme.colors.textMuted }]}>{option.value}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </Animated.View>
           </View>
-        </View>
-      </Modal>
+        </Modal>
+      )}
     </>
   );
 }
@@ -96,25 +139,66 @@ const styles = StyleSheet.create({
   triggerText: {
     fontWeight: '600',
   },
-  modalOverlay: {
+  sheetWrapper: {
     flex: 1,
-    justifyContent: 'center',
-    paddingHorizontal: 24,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
   },
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.25)',
+  sheetContent: {
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingTop: 34,
+    paddingHorizontal: 20,
+    paddingBottom: 32,
+    borderTopWidth: 1,
+    minHeight: '100%',
   },
-  modalContent: {
-    borderRadius: 16,
+  sheetHandle: {
+    width: 50,
+    height: 4,
+    borderRadius: 999,
+    alignSelf: 'center',
+    backgroundColor: 'rgba(148, 163, 184, 0.5)',
+    marginBottom: 16,
+  },
+  sheetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  sheetTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  sheetOptions: {
+    paddingBottom: 40,
+    gap: 10,
+  },
+  optionCard: {
+    borderRadius: 18,
     borderWidth: 1,
-    paddingVertical: 8,
+    padding: 16,
   },
-  optionRow: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+  optionLabel: {
+    fontSize: 15,
+    fontWeight: '600',
   },
-  optionText: {
-    fontSize: 14,
+  optionValue: {
+    fontSize: 13,
+    marginTop: 4,
+  },
+  closeButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(148, 163, 184, 0.3)',
+  },
+  closeButtonText: {
+    fontSize: 20,
+    fontWeight: '700',
   },
 });
