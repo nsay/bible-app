@@ -75,12 +75,10 @@ export function VerseList({
         pressed && styles.verseCardPressed,
       ]}
     >
-      <View style={styles.verseHeader}>
-        <Text style={[styles.verseNumber, { color: theme.colors.verseNumber }]}>
-          {item.verseId}
-        </Text>
+      <View style={styles.verseLine}>
+        <Text style={[styles.verseNumber, { color: theme.colors.verseNumber }]}>{item.verseId}</Text>
+        <View style={styles.verseContent}>{renderVerseText(item.verse, edits[item.id] ?? [], theme)}</View>
       </View>
-      {renderVerseText(item.verse, edits[item.id] ?? [], theme)}
       {(tags[item.id] ?? []).length > 0 && (
         <View style={styles.tagList}>
           {(tags[item.id] ?? []).map((tag) => (
@@ -184,17 +182,20 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   verseCardPressed: {
-    opacity: 0.95,
+    opacity: 0.5,
   },
-  verseHeader: {
+  verseLine: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 8,
+    alignItems: 'flex-start',
+    gap: 10,
+    marginBottom: 0,
   },
   verseNumber: {
     fontWeight: '700',
-    marginBottom: 6,
+    marginTop: 2,
+  },
+  verseContent: {
+    flex: 1,
   },
   verseText: {
     lineHeight: 20,
