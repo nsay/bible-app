@@ -1,33 +1,40 @@
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import { Theme } from '../theme/theme';
 import { TranslationOption } from '../constants/translations';
 import { TranslationDropdown } from './TranslationDropdown';
 
 type ScreenHeaderProps = {
   theme: Theme;
-  title: string;
   translationOptions: TranslationOption[];
   selectedTranslation: string;
   onSelectTranslation: (value: string) => void;
   onToggleMenu: () => void;
+  referenceLabel: string;
+  onPressReference: () => void;
 };
 
 export function ScreenHeader({
   theme,
-  title,
   translationOptions,
   selectedTranslation,
   onSelectTranslation,
   onToggleMenu,
+  referenceLabel,
+  onPressReference,
 }: ScreenHeaderProps) {
   return (
     <View style={styles.headerRow}>
-        <TouchableOpacity style={styles.menuButton} onPress={onToggleMenu}>
-          <Text style={[styles.menuIcon, { color: theme.colors.sectionTitle }]}>☰</Text>
-        </TouchableOpacity>
-        <Text style={[styles.appTitle, { color: theme.colors.title }]} numberOfLines={1}>
-        {title}
-      </Text>
+      <TouchableOpacity style={styles.menuButton} onPress={onToggleMenu}>
+        <Text style={[styles.menuIcon, { color: theme.colors.sectionTitle }]}>☰</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity style={styles.referenceButton} onPress={onPressReference} activeOpacity={0.85}>
+        <Text style={[styles.referenceText, { color: theme.colors.sectionTitle }]} numberOfLines={1}>
+          {referenceLabel}
+        </Text>
+        <Feather name="chevron-down" size={16} color={theme.colors.sectionTitle} />
+      </TouchableOpacity>
 
       <View style={styles.actionsRow}>
         <TranslationDropdown
@@ -55,15 +62,17 @@ const styles = StyleSheet.create({
   menuIcon: {
     fontSize: 22,
   },
-  appTitle: {
-    fontSize: 32,
-    fontWeight: '700',
-    flex: 1,
+  referenceText: {
+    fontSize: 16,
+    fontWeight: '600',
   },
-  subtitle: {
-    fontSize: 14,
-    marginTop: 5,
-    textAlign: 'center',
+  referenceButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 6,
   },
   actionsRow: {
     flexDirection: 'row',

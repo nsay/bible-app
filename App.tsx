@@ -7,16 +7,15 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { ScreenHeader } from './src/components/ScreenHeader';
 import { VerseList, VerseEdit, VerseNote, VerseTag } from './src/components/VerseList';
 import { ErrorBanner } from './src/components/ErrorBanner';
-import { BookPicker } from './src/components/BookPicker';
-import { ChapterPicker } from './src/components/ChapterPicker';
 import { useBibleData } from './src/hooks/useBibleData';
 import { useBibleTheme } from './src/hooks/useBibleTheme';
 import { POPULAR_TRANSLATIONS } from './src/constants/translations';
-import { Verse } from './src/api/bible';
+import { Verse, bibleApi } from './src/api/bible';
 import { buildVerseEditNodes } from './src/utils/verseEdits';
 import { NotesPanel, NoteGroup } from './src/components/NotesPanel';
 import { TagsPanel, TagGroup } from './src/components/TagsPanel';
 import { SideBar } from './src/components/SideBar/SideBar';
+import { BookSelector } from './src/components/BookSelector/BookSelector';
 
 const ACTION_SHEET_HEIGHT = 320;
 
@@ -39,6 +38,12 @@ export default function App() {
   const sidebarAnim = useRef(new Animated.Value(-sidebarWidth)).current;
   const contentAnim = useRef(new Animated.Value(0)).current;
   const [notesPanelOpen, setNotesPanelOpen] = useState(false);
+  const referencePanelHeight = Dimensions.get('window').height;
+  const referencePanelAnim = useRef(new Animated.Value(referencePanelHeight)).current;
+  const [referencePanelOpen, setReferencePanelOpen] = useState(false);
+  const [expandedBookId, setExpandedBookId] = useState<number | null>(null);
+  const [bookChaptersMap, setBookChaptersMap] = useState<Record<number, number[]>>({});
+  const [bookChaptersLoading, setBookChaptersLoading] = useState<number | null>(null);
   const notesPanelHeight = Dimensions.get('window').height;
   const notesPanelAnim = useRef(new Animated.Value(notesPanelHeight)).current;
   const [tagsPanelOpen, setTagsPanelOpen] = useState(false);
@@ -138,9 +143,72 @@ export default function App() {
   }, [tagsPanelOpen, tagsPanelAnim, tagsPanelHeight]);
 
   useEffect(() => {
+    Animated.timing(referencePanelAnim, {
+      toValue: referencePanelOpen ? 0 : referencePanelHeight,
+      duration: 250,
+      useNativeDriver: true,
+    }).start();
+  }, [referencePanelOpen, referencePanelAnim, referencePanelHeight]);
+
+  useEffect(() => {
+    if (selectedBookId && chapters.length) {
+      setBookChaptersMap((prev) => ({
+        ...prev,
+        [selectedBookId]: chapters,
+      }));
+    }
+  }, [selectedBookId, chapters]);
+
+  useEffect(() => {
     interactionLockRef.current =
-      sidebarOpen || notesPanelOpen || tagsPanelOpen || actionSheetVisible;
-  }, [sidebarOpen, notesPanelOpen, tagsPanelOpen, actionSheetVisible]);
+      sidebarOpen || notesPanelOpen || tagsPanelOpen || actionSheetVisible || referencePanelOpen;
+  }, [sidebarOpen, notesPanelOpen, tagsPanelOpen, actionSheetVisible, referencePanelOpen]);
+
+  const loadBookChapters = async (bookId: number) => {
+    if (bookChaptersMap[bookId]) {
+      return;
+    }
+    setBookChaptersLoading(bookId);
+    try {
+      const data = await bibleApi.fetchChapters(bookId);
+      const numbers = data.map((chapter) => chapter.id);
+      setBookChaptersMap((prev) => ({
+        ...prev,
+        [bookId]: numbers,
+      }));
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setBookChaptersLoading(null);
+    }
+  };
+
+  const handleToggleBook = async (bookId: number) => {
+    if (expandedBookId === bookId) {
+      setExpandedBookId(null);
+      return;
+    }
+    setExpandedBookId(bookId);
+    await loadBookChapters(bookId);
+  };
+
+  const handleSelectBookChapter = (bookId: number, chapter: number) => {
+    setSelectedBookId(bookId);
+    setSelectedChapter(chapter);
+    setReferencePanelOpen(false);
+  };
+
+  const handleOpenReferencePanel = () => {
+    if (selectedBookId) {
+      loadBookChapters(selectedBookId);
+    }
+    setExpandedBookId(selectedBookId);
+    setReferencePanelOpen(true);
+  };
+
+  const handleCloseReferencePanel = () => {
+    setReferencePanelOpen(false);
+  };
 
   const allNotes = useMemo<NoteGroup[]>(() => {
     const grouped: Record<string, NoteGroup> = {};
@@ -508,6 +576,9 @@ export default function App() {
     );
   };
 
+  const selectedBook = books.find((book) => book.id === selectedBookId);
+  const referenceLabel = selectedBook ? `${selectedBook.name} ${selectedChapter}` : 'Select Passage';
+
   return (
     <SafeAreaProvider>
       <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>
@@ -517,32 +588,14 @@ export default function App() {
           {...panResponder.panHandlers}
         >
           <ScreenHeader
-            title="Daily Bible"
             theme={theme}
             translationOptions={POPULAR_TRANSLATIONS}
             selectedTranslation={translation}
             onSelectTranslation={setTranslation}
             onToggleMenu={() => setSidebarOpen(true)}
+            referenceLabel={referenceLabel}
+            onPressReference={handleOpenReferencePanel}
           />
-
-          <View style={styles.pickerRow}>
-            <View style={styles.pickerColumn}>
-              <BookPicker
-                books={books}
-                selectedBookId={selectedBookId}
-                onSelect={setSelectedBookId}
-                theme={theme}
-              />
-            </View>
-            <View style={styles.pickerColumn}>
-              <ChapterPicker
-                chapters={chapters}
-                selectedChapter={selectedChapter}
-                onSelect={setSelectedChapter}
-                theme={theme}
-              />
-            </View>
-          </View>
 
           {error && <ErrorBanner message={error} onDismiss={dismissError} theme={theme} />}
 
@@ -817,6 +870,22 @@ export default function App() {
         </View>
       )}
 
+      <BookSelector
+        theme={theme}
+        books={books}
+        selectedBookId={selectedBookId}
+        selectedChapter={selectedChapter}
+        visible={referencePanelOpen}
+        panelHeight={referencePanelHeight}
+        animation={referencePanelAnim}
+        expandedBookId={expandedBookId}
+        onToggleBook={handleToggleBook}
+        onSelectChapter={handleSelectBookChapter}
+        onClose={handleCloseReferencePanel}
+        bookChaptersMap={bookChaptersMap}
+        loadingBookId={bookChaptersLoading}
+      />
+
       <NotesPanel
         visible={notesPanelOpen}
         panelHeight={notesPanelHeight}
@@ -849,15 +918,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 16,
   },
-  pickerRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 12,
-    marginBottom: 12,
-  },
-  pickerColumn: {
-    flex: 1,
-  },
   editOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',
@@ -868,6 +928,15 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 20,
     gap: 12,
+  },
+  closeButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(148, 163, 184, 0.3)',
   },
   noteCardModal: {
     borderRadius: 20,
