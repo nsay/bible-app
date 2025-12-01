@@ -1,4 +1,4 @@
-import { Animated, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Animated, LayoutAnimation, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { Theme } from '../../theme/theme';
 import { Book } from '../../api/bible';
@@ -36,16 +36,19 @@ export function BookSelector({
 }: BookSelectorProps) {
   const panelPointerEvents: 'auto' | 'none' = visible ? 'auto' : 'none';
 
+  const handleBookPress = (bookId: number) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    onToggleBook(bookId);
+  };
+
   return (
     <>
       <TouchableOpacity
         style={[styles.overlay, { opacity: visible ? 1 : 0 }]}
         activeOpacity={1}
         onPress={onClose}
-        pointerEvents={visible ? 'auto' : 'none'}
       />
       <Animated.View
-        pointerEvents={panelPointerEvents}
         style={[
           styles.panel,
           {
@@ -69,7 +72,7 @@ export function BookSelector({
               <View key={book.id} style={styles.bookCard}>
                 <TouchableOpacity
                   style={[styles.bookRow, book.id === selectedBookId && styles.activeBookRow]}
-                  onPress={() => onToggleBook(book.id)}
+                  onPress={() => handleBookPress(book.id)}
                 >
                   <Text style={[styles.bookName, { color: theme.colors.text }]}>{book.name}</Text>
                   <Feather
@@ -173,8 +176,7 @@ const styles = StyleSheet.create({
   chapterGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     paddingBottom: 12,
   },
   chapterChip: {
@@ -182,7 +184,10 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(148, 163, 184, 0.4)',
     borderRadius: 10,
     paddingVertical: 6,
-    paddingHorizontal: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '16%',
+    marginVertical: 4,
     backgroundColor: 'rgba(148, 163, 184, 0.08)',
   },
   chapterChipActive: {
